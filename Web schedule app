@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8" />
+<title>Validador Semanal de Horários</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+  :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial; font-size:14px}
+  body{padding:16px;background:#f6f7fb;color:#111}
+  h1,h2{margin:6px 0}
+  table{border-collapse:collapse;width:100%;table-layout:fixed}
+  th,td{border:1px solid #ddd;padding:6px;text-align:center;vertical-align:middle}
+  th{background:#f0f2f8}
+  input[type="time"]{width:88%}
+  .small{font-size:12px;color:#444}
+  .controls{display:flex;gap:12px;align-items:center;margin:8px 0 16px 0}
+  button{padding:4px 6px;cursor:pointer;font-size:12px}
+  pre#resultado{white-space:pre-wrap;background:#fff;padding:10px;border:1px solid #ddd;margin-top:12px;overflow:auto}
+  .ph-title{background:#fafafa;font-weight:600}
+  .copy-btn{padding:2px 4px; margin-left:4px;}
+
+  
+  .farma-header{
+    margin-top: 16px;
+    border-top: 2px solid #a6d6e9;
+  }
+
+  @media (max-width:900px){
+    table{font-size:12px}
+    input[type="time"]{width:100%}
+  }
+</style>
+</head>
+<body>
+
+<h1>Validador Semanal de Horários</h1>
+
+<p class="small">
+Valide a escala da filial. Clique <b>Validar semana</b> para calcular a carga horária semanal dos farmacêuticos.<br><br>
+<b>Art. 71 do Decreto-lei nº 5.452 | CLT - intervalo mínimo 1h e máximo 2h.</b>
+</p>
+
+<div class="controls">
+  <label>Quantidade de farmacêuticos:
+    <select id="qtd" onchange="atualizarQtd()">
+      <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+      <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+    </select>
+  </label>
+  <button onclick="validarSemana()">Validar semana</button>
+  <button onclick="limparTudo()">Limpar</button>
+</div>
+
+<table id="tabela">
+  <thead>
+    <tr>
+      <th style="width:220px">Campo / Dia</th>
+      <th>SEG</th><th>TER</th><th>QUA</th><th>QUI</th><th>SEX</th><th>SÁB</th><th>DOM</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody id="tbody_main">
+    <tr><td class="ph-title">Abertura </td>
+      <td><input id="abertura1_seg" type="time"></td>
+      <td><input id="abertura1_ter" type="time"></td>
+      <td><input id="abertura1_qua" type="time"></td>
+      <td><input id="abertura1_qui" type="time"></td>
+      <td><input id="abertura1_sex" type="time"></td>
+      <td><input id="abertura1_sab" type="time"></td>
+      <td><input id="abertura1_dom" type="time"></td>
+      <td><button class="copy-btn" onclick="copiarLinha(this)">→</button></td>
+    </tr>
+
+    <tr><td class="ph-title">Fechamento </td>
+      <td><input id="fechamento1_seg" type="time"></td>
+      <td><input id="fechamento1_ter" type="time"></td>
+      <td><input id="fechamento1_qua" type="time"></td>
+      <td><input id="fechamento1_qui" type="time"></td>
+      <td><input id="fechamento1_sex" type="time"></td>
+      <td><input id="fechamento1_sab" type="time"></td>
+      <td><input id="fechamento1_dom" type="time"></td>
+      <td><button class="copy-btn" onclick="copiarLinha(this)">→</button></td>
+    </tr>
+
+    <tr><td class="ph-title">Intervalo filial</td>
+      <td><input id="abertura2_seg" type="time"></td>
+      <td><input id="abertura2_ter" type="time"></td>
+      <td><input id="abertura2_qua" type="time"></td>
+      <td><input id="abertura2_qui" type="time"></td>
+      <td><input id="abertura2_sex" type="time"></td>
+      <td><input id="abertura2_sab" type="time"></td>
+      <td><input id="abertura2_dom" type="time"></td>
+      <td><button class="copy-btn" onclick="copiarLinha(this)">→</button></td>
+    </tr>
+
+    <tr><td class="ph-title">Reabertura</td>
+      <td><input id="fechamento2_seg" type="time"></td>
+      <td><input id="fechamento2_ter" type="time"></td>
+      <td><input id="fechamento2_qua" type="time"></td>
+      <td><input id="fechamento2_qui" type="time"></td>
+      <td><input id="fechamento2_sex" type="time"></td>
+      <td><input id="fechamento2_sab" type="time"></td>
+      <td><input id="fechamento2_dom" type="time"></td>
+      <td><button class="copy-btn" onclick="copiarLinha(this)">→</button></td>
+    </tr>
+  </tbody>
+</table>
+
+<pre id="resultado"></pre>
+
+<script>
+const DAYS = ['seg','ter','qua','qui','sex','sab','dom'];
+
+function conv(h){ if(!h) return null; const [H,M]=h.split(':').map(Number); return H*60+M; }
+function fmt(min){ if(min==null) return '--:--'; const H=Math.floor(min/60); const M=min%60; return `${String(H).padStart(2,'0')}:${String(M).padStart(2,'0')}`; }
+function fmtHoras(min){ if(min==null) return '0h00min'; const H=Math.floor(min/60); const M=min%60; return `${H}h${String(M).padStart(2,'0')}min`; }
+function unirIntervalos(lista){ lista.sort((a,b)=>a[0]-b[0]); const out=[]; for(const [i,f] of lista){ if(out.length===0 || i>out[out.length-1][1]) out.push([i,f]); else out[out.length-1][1]=Math.max(out[out.length-1][1],f); } return out; }
+
+function validarFaixa(iniFaixa,fimFaixa,unificados){
+  if(iniFaixa==null || fimFaixa==null) return {ok:true};
+  const blocos = unificados.filter(([a,b]) => b>iniFaixa && a<fimFaixa);
+  if(blocos.length===0) return {ok:false, msg:`Falha: ${fmt(iniFaixa)} até ${fmt(fimFaixa)}`};
+  blocos.sort((x,y)=>x[0]-y[0]);
+  const erros = [];
+  if(blocos[0][0] > iniFaixa) erros.push([iniFaixa, blocos[0][0]]);
+  for(let i=0;i<blocos.length-1;i++){
+    if(blocos[i+1][0] > blocos[i][1]) erros.push([blocos[i][1], blocos[i+1][0]]);
+  }
+  if(blocos[blocos.length-1][1] < fimFaixa) erros.push([blocos[blocos.length-1][1], fimFaixa]);
+  if(erros.length===0) return {ok:true};
+  return {ok:false, msg:erros.map(([a,b])=>`Falha: ${fmt(a)} até ${fmt(b)}`).join(' | ')};
+}
+
+(function renderPharmRows(){
+  const tbody = document.getElementById('tbody_main');
+  for(let p=1;p<=6;p++){
+
+  
+    const titleRow = document.createElement('tr');
+    titleRow.classList.add('farma-header');
+
+    titleRow.innerHTML = `<td class="ph-title" colspan="1">Farma ${p}</td>`+
+      DAYS.map(d=>`<td class="ph-title">${d.toUpperCase()}</td>`).join('')+`<td></td>`;
+    tbody.appendChild(titleRow);
+
+    ['Entrada','Intervalo','Retorno','Saída'].forEach(label=>{
+      const labelNegrito = (label==='Entrada' || label==='Saída') ? `<b>${label}</b>` : label;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${labelNegrito} (F${p})</td>`+
+        DAYS.map(d=>`<td><input id="f${p}_${d}_${label.charAt(0).toLowerCase()}" type="time"></td>`).join('')+
+        `<td><button class="copy-btn" onclick="copiarLinha(this)">→</button></td>`;
+      tbody.appendChild(tr);
+    });
+  }
+})();
+
+function atualizarQtd(){
+  const qtd = Number(document.getElementById('qtd').value);
+  for(let p=1;p<=6;p++){
+    const show = p<=qtd;
+    const rows = document.querySelectorAll(`#tbody_main tr`);
+    rows.forEach(tr=>{
+      if(tr.innerHTML.includes(`Farma ${p}`) || tr.innerHTML.includes(`(F${p})`)){
+        tr.style.display = show ? '' : 'none';
+      }
+    });
+  }
+}
+
+function limparTudo(){
+  document.querySelectorAll('input[type=time]').forEach(i=>i.value='');
+  document.getElementById('resultado').innerText = '';
+}
+
+function copiarLinha(btn){
+  const tr = btn.closest('tr');
+  const inputs = Array.from(tr.querySelectorAll('input[type=time]'));
+  if(inputs.length<2) return;
+  const valor = inputs[0].value;
+  inputs.forEach(i=>i.value=valor);
+}
+
+function validarSemana(){
+  const qtd = Number(document.getElementById('qtd').value);
+  const totalHoras = Array(qtd).fill(0);
+  const erros = [];
+
+  for(const d of DAYS){
+    const abertura1 = conv(document.getElementById(`abertura1_${d}`).value);
+    const fechamento1 = conv(document.getElementById(`fechamento1_${d}`).value);
+    if(abertura1==null || fechamento1==null) continue;
+
+    const abertura2 = conv(document.getElementById(`abertura2_${d}`).value);
+    const fechamento2 = conv(document.getElementById(`fechamento2_${d}`).value);
+
+    const todos=[];
+    if(abertura2!=null && fechamento2!=null){
+      if(fechamento2<abertura2){ todos.push([abertura2,1440]); todos.push([0,fechamento2]); }
+      else todos.push([abertura2,fechamento2]);
+    }
+
+    let coberturaDia=false;
+
+    for(let p=1;p<=qtd;p++){
+      const entrada = conv(document.getElementById(`f${p}_${d}_e`).value);
+      const intervalo = conv(document.getElementById(`f${p}_${d}_i`).value);
+      const retorno = conv(document.getElementById(`f${p}_${d}_r`).value);
+      const saida = conv(document.getElementById(`f${p}_${d}_s`).value);
+
+      if(entrada==null || saida==null) continue;
+      coberturaDia=true;
+
+      function adicionarBloco(inicio,fim){
+        if(fim<inicio){ todos.push([inicio,1440]); todos.push([0,fim]); }
+        else todos.push([inicio,fim]);
+      }
+
+      if(intervalo==null || retorno==null){
+        adicionarBloco(entrada,saida);
+        totalHoras[p-1] += (saida>=entrada ? saida-entrada : (1440-entrada)+saida);
+
+      } else {
+        if(!(entrada <= intervalo && intervalo <= retorno && retorno <= saida))
+          erros.push(`Dia ${d.toUpperCase()}: Intervalo inválido Farma ${p}`);
+
+        let durIntervalo = retorno - intervalo;
+        if(durIntervalo > 120) erros.push(`Dia ${d.toUpperCase()}: Intervalo Farma ${p} excede 2h`);
+        if(durIntervalo < 60) erros.push(`Dia ${d.toUpperCase()}: Intervalo Farma ${p} menor que 1h`);
+
+        adicionarBloco(entrada,intervalo);
+        adicionarBloco(retorno,saida);
+
+        totalHoras[p-1] += (intervalo-entrada) + (saida-retorno);
+      }
+    }
+
+    if(!coberturaDia)
+      erros.push(`Dia ${d.toUpperCase()} sem cobertura de horário`);
+
+    const unificados = unirIntervalos(todos);
+
+    const v1 = validarFaixa(abertura1,fechamento1,unificados);
+    if(!v1.ok) erros.push(`Dia ${d.toUpperCase()} - ${v1.msg}`);
+
+    if(abertura2!=null && fechamento2!=null){
+      const v2 = validarFaixa(abertura2,fechamento2,unificados);
+      if(!v2.ok) erros.push(`Dia ${d.toUpperCase()} - ${v2.msg}`);
+    }
+  }
+
+  const resEl = document.getElementById('resultado');
+
+  if(erros.length>0){
+    resEl.style.color = "red";
+    resEl.innerHTML = erros.map(e =>
+      e.includes('sem cobertura') ? `<span style="color:red">${e}</span>` : e
+    ).join('\n');
+
+  } else {
+    const res = totalHoras
+      .map((h,i)=>`Horas semanais totais Farma ${i+1}: ${fmtHoras(h)}`)
+      .join('\n');
+
+    resEl.style.color = "green";
+    resEl.innerText = `Horários válidos.\n${res}`;
+  }
+}
+
+atualizarQtd();
+</script>
+
+</body>
+</html>
